@@ -75,7 +75,7 @@ The features of the React Native Launcher Kit include:
 
 ## Demo
 <p>
-   <img width="200" src="https://raw.githubusercontent.com/louaySleman/react-native-launcher-kit/master/screenshots/1.webp" />
+   <img width="200" src="https://raw.githubusercontent.com/louaySleman/react-native-launcher-kit/main/screenshots/1.webp" />
 </p>
 
 ## Methods
@@ -202,7 +202,7 @@ React-Native-Launcher-Kit has been utilized for testing purposes on a launcher k
 
 ## Example App
 
-You can experience the functionality of the code by exploring the examples provided in our GitHub repository, which can be accessed from the following link.
+You can experience the functionality of the code by exploring the examples provided in our GitHub repository, which can be accessed from the following [link](https://github.com/louaySleman/react-native-launcher-kit/tree/main/example).
 
 ## License
 

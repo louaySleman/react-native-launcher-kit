@@ -11,9 +11,7 @@
     "src",
     "lib",
     "android",
-    "ios",
     "cpp",
-    "*.podspec",
     "!lib/typescript/example",
     "!ios/build",
     "!android/build",
@@ -34,7 +32,8 @@
     "prepack": "bob build",
     "release": "release-it",
     "example": "yarn --cwd example",
-    "bootstrap": "yarn example && yarn install && yarn example pods",
+    "bootstrap": "yarn example && yarn install",
+    "format": "prettier --write \"src/**/*.tsx\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build"
   },
   "keywords": [
@@ -72,7 +71,6 @@
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
-    "@evilmartians/lefthook": "^1.2.2",
     "@commitlint/config-conventional": "^17.0.2",
     "@react-native-community/eslint-config": "^3.0.2",
     "@release-it/conventional-changelog": "^5.0.0",
@@ -85,7 +83,6 @@
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.0.0",
     "jest": "^28.1.1",
-    "pod-install": "^0.1.0",
     "prettier": "^2.0.5",
     "react": "18.2.0",
     "react-native": "0.71.7",
