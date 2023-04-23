@@ -1,22 +1,9 @@
-import { NativeModules, Platform } from 'react-native';
+/**
+ * @author Louay Sleman
+ * louayakram12@hotmail.com
+ * version 1.0.0
+ */
+import InstalledApps from './InstalledApps';
+import RNLauncherKitHelper from './Helper';
 
-const LINKING_ERROR =
-  `The package 'react-native-launcher-kit' doesn't seem to be linked. Make sure: \n\n` +
-  Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
-  '- You rebuilt the app after installing the package\n' +
-  '- You are not using Expo Go\n';
-
-const LauncherKit = NativeModules.LauncherKit
-  ? NativeModules.LauncherKit
-  : new Proxy(
-      {},
-      {
-        get() {
-          throw new Error(LINKING_ERROR);
-        },
-      }
-    );
-
-export function multiply(a: number, b: number): Promise<number> {
-  return LauncherKit.multiply(a, b);
-}
+export { InstalledApps, RNLauncherKitHelper };
