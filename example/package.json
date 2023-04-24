@@ -14,7 +14,7 @@
     "react-native": "0.70.6",
     "react-native-fast-image": "^8.6.3",
     "react-native-vector-icons": "^9.2.0",
-    "react-native-launcher-kit": "^1.0.1"
+    "react-native-launcher-kit": "^1.0.4"
   },
   "devDependencies": {
     "@babel/core": "^7.12.9",
