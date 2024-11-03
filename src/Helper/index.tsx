@@ -1,3 +1,11 @@
+/**
+ * @author Louay Sleman
+ * @contact louayakram12@hotmail.com
+ * @linkedin https://www.linkedin.com/in/louay-sleman
+ * @version 2.0.0
+ * @website https://louaysleman.com
+ * @copyright Copyright (c) 2024 Louay Sleman. All rights reserved.
+ */
 import { NativeModules } from 'react-native';
 import { LINKING_ERROR } from '../Utils/helper';
 import type { LauncherKitHelperProps } from '../Interfaces/helper';
@@ -19,14 +27,19 @@ const LauncherKit = NativeModules.LauncherKit
  */
 const LauncherKitHelper: LauncherKitHelperProps = {
   /**
-   * Launches an app with the given bundle ID.
+   * Launches an app with the given bundle ID with scale in animation.
    *
    * @param bundleId The bundle ID of the app to launch.
+   * @param params Additional parameters to pass to the launched app.
+   * @param animation The animation that you want in default it's fade in
    * @returns `true` if the app was successfully launched, `false` otherwise.
    */
-  launchApplication: (bundleId: string): boolean => {
+  launchApplication: (
+    bundleId: string,
+    params?: Record<string, string>
+  ): boolean => {
     try {
-      LauncherKit.launchApplication(bundleId);
+      LauncherKit.launchApplication(bundleId, params);
       return true;
     } catch (error) {
       if (__DEV__) console.error(error);
@@ -115,7 +128,8 @@ const LauncherKitHelper: LauncherKitHelperProps = {
           resolve(result); // true
         })
         .catch((error: any) => {
-          if (__DEV__) console.error('Error opening set default launcher:', error);
+          if (__DEV__)
+            console.error('Error opening set default launcher:', error);
           reject(error);
         });
     }),

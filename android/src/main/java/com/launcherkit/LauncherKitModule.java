@@ -1,13 +1,17 @@
 package com.launcherkit;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.facebook.react.bridge.ReactContext;
 
+import android.app.ActivityOptions;
 import android.content.ActivityNotFoundException;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
@@ -29,10 +33,32 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.Rect;
+import android.graphics.Paint;
 import android.os.Build;
+import android.os.Bundle;
 import android.util.Base64;
 import com.facebook.react.bridge.Callback;
 import android.provider.Settings;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import android.content.BroadcastReceiver;
+
+import android.util.Log;
+
+import android.graphics.drawable.AdaptiveIconDrawable;
+import android.provider.AlarmClock;
+import androidx.palette.graphics.Palette;
+
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
 
 @ReactModule(name = LauncherKitModule.NAME)
 public class LauncherKitModule extends ReactContextBaseJavaModule {
@@ -44,85 +70,162 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     this.reactContext = reactContext;
   }
 
-
-  private class DeviceDetails {
-    CharSequence deviceId;
-    CharSequence bundleId;
-    CharSequence systemName;
-    CharSequence systemVersion;
-    CharSequence appVersion;
-    CharSequence buildNumber;
-    CharSequence appName;
-    CharSequence brand;
-    CharSequence model;
-    public String toString() {
-      return "{\"deviceId\":\"" + this.deviceId + "\",\"bundleId\":\"" + this.bundleId + "\",\"systemName\":\"" + this.systemName + "\",\"systemVersion\":\"" + this.systemVersion + "\",\"appVersion\":\"" + this.appVersion + "\",\"buildNumber\":\"" + this.buildNumber + "\",\"appName\":\"" + this.appName + "\",\"brand\":\"" + this.brand + "\",\"model\":\"" + this.model + "\"}";
-    }
-  }
-
+  /**
+   * Private class representing app details.
+   * Contains properties such as app label, package name, and icon.
+   */
   private class AppDetail {
     CharSequence label;
     CharSequence packageName;
     Drawable icon;
-    public String toString() {
-      Bitmap icon;
-      if(this.icon.getIntrinsicWidth() <= 0 || this.icon.getIntrinsicHeight() <= 0) {
-        icon = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888); // Single color bitmap will be created of 1x1 pixel
-      } else {
-        icon = Bitmap.createBitmap(this.icon.getIntrinsicWidth(), this.icon.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+    String iconPath;
+    String version;
+    String accentColor;  // Store the accent color of the icon
+
+    /**
+     * Constructor
+     *
+     * @param ri                 ResolveInfo for the app
+     * @param pManager           PackageManager instance
+     * @param context            Context of the application
+     * @param includeVersion     Flag to include version information
+     * @param includeAccentColor Flag to include accent color calculation
+     */
+    public AppDetail(ResolveInfo ri, PackageManager pManager, Context context, boolean includeVersion, boolean includeAccentColor) {
+      this.label = ri.loadLabel(pManager);
+      this.packageName = ri.activityInfo.packageName;
+      this.icon = ri.loadIcon(pManager);
+
+      // Process the icon to a Bitmap
+      Bitmap iconBitmap = drawableToBitmap(this.icon);
+      if (iconBitmap != null) {
+        this.iconPath = saveIconToFile(iconBitmap, this.packageName.toString(), context);
       }
-      final Canvas canvas = new Canvas(icon);
-      this.icon.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-      this.icon.draw(canvas);
 
-      ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-      icon.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream);
-      byte[] byteArray = byteArrayOutputStream.toByteArray();
-      String encoded = Base64.encodeToString(byteArray, Base64.NO_WRAP);
+      if (includeVersion) {
+        try {
+          PackageInfo packageInfo = pManager.getPackageInfo(this.packageName.toString(), 0);
+          this.version = packageInfo.versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+          Log.e("AppUtils", "Package not found", e);
+          this.version = "Unknown";
+        }
+      }
 
-      return "{\"label\":\"" + this.label + "\",\"packageName\":\"" + this.packageName + "\",\"icon\":\"" + encoded + "\"}";
+      if (includeAccentColor && iconBitmap != null) {
+        this.accentColor = getAccentColor(iconBitmap);
+      }
+    }
+
+    private Bitmap drawableToBitmap(Drawable drawable) {
+      if (drawable instanceof BitmapDrawable) {
+        return ((BitmapDrawable) drawable).getBitmap();
+      } else {
+        int width = Math.max(drawable.getIntrinsicWidth(), 1);
+        int height = Math.max(drawable.getIntrinsicHeight(), 1);
+        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, width, height);
+        drawable.draw(canvas);
+        return bitmap;
+      }
+    }
+
+    private String saveIconToFile(Bitmap iconBitmap, String fileName, Context context) {
+      File cacheDir = new File(context.getCacheDir(), "icons");
+      if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+        Log.e("AppUtils", "Failed to create directory for icons");
+        return null;
+      }
+      File iconFile = new File(cacheDir, fileName + ".png");
+      try (FileOutputStream fos = new FileOutputStream(iconFile)) {
+        iconBitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+        fos.flush();
+        return iconFile.getAbsolutePath();
+      } catch (IOException e) {
+        Log.e("AppUtils", "Error saving icon to file", e);
+        return null;
+      }
+    }
+
+    private String getAccentColor(Bitmap bitmap) {
+      Palette p = Palette.from(bitmap)
+        .maximumColorCount(100) // Try increasing the color count
+        .generate();
+      Palette.Swatch dominantSwatch = p.getDominantSwatch(); // You might also consider using a different swatch based on your needs
+      if (dominantSwatch != null) {
+        return String.format("#%06X", (0xFFFFFF & dominantSwatch.getRgb()));
+      }
+      return "#000000"; // Default fallback
+    }
+
+    @Override
+    public String toString() {
+      return "{\"label\":\"" + label +
+        "\", \"packageName\":\"" + packageName +
+        "\", \"icon\":\"file://" + iconPath +
+        "\", \"version\":\"" + version +
+        "\", \"accentColor\":\"" + accentColor + "\"}";
     }
   }
 
+  /**
+   * Retrieves a list of installed apps on the device with optional version and accent color.
+   *
+   * @param includeVersion     Whether to include version info in the app details.
+   * @param includeAccentColor Whether to calculate and include the accent color of the app icon.
+   * @param promise            Promise to handle asynchronous operation result.
+   */
   @ReactMethod
-  private String getApps(){
-    List<AppDetail> apps = new ArrayList<>();
-    PackageManager pManager = this.reactContext.getPackageManager();
+  public void getApps(boolean includeVersion, boolean includeAccentColor, Promise promise) {
+    new Thread(() -> {
+      Set<String> addedPackages = new HashSet<>();
+      List<AppDetail> apps = new ArrayList<>();
+      PackageManager pManager = reactContext.getCurrentActivity().getPackageManager();
 
-    Intent i = new Intent(Intent.ACTION_MAIN, null);
-    i.addCategory(Intent.CATEGORY_LAUNCHER);
-    List<ResolveInfo> allApps = pManager.queryIntentActivities(i, 0);
-    for (ResolveInfo ri : allApps) {
-      AppDetail app = new AppDetail();
-      app.label = ri.loadLabel(pManager);
-      app.packageName = ri.activityInfo.packageName;
-      app.icon = ri.activityInfo.loadIcon(this.reactContext.getPackageManager());
-      apps.add(app);
+      Intent intent = new Intent(Intent.ACTION_MAIN, null);
+      intent.addCategory(Intent.CATEGORY_LAUNCHER);
+      List<ResolveInfo> allApps = pManager.queryIntentActivities(intent, 0);
 
-    }
-    return apps.toString();
-
+      for (ResolveInfo ri : allApps) {
+        String packageName = ri.activityInfo.packageName;
+        if (!addedPackages.contains(packageName)) {
+          AppDetail app = new AppDetail(ri, pManager, reactContext, includeVersion, includeAccentColor);
+          apps.add(app);
+          addedPackages.add(packageName);
+        }
+      }
+      promise.resolve(apps.toString());
+    }).start();
   }
 
+  /*
+   * Retrieves a list of all installed apps on the device.
+   * Returns a list of package names.
+   */
   private List<String> getAllApps() {
     List<PackageInfo> packages = this.reactContext
       .getPackageManager()
       .getInstalledPackages(0);
 
     List<String> ret = new ArrayList<>();
-    for (final PackageInfo p: packages) {
+    for (final PackageInfo p : packages) {
       ret.add(p.packageName);
     }
     return ret;
   }
 
+  /*
+   * Retrieves a list of all installed apps on the device.
+   * Returns a list of package names.
+   */
   private List<String> getNonSystemApps() {
     List<PackageInfo> packages = this.reactContext
       .getPackageManager()
       .getInstalledPackages(0);
 
     List<String> ret = new ArrayList<>();
-    for (final PackageInfo p: packages) {
+    for (final PackageInfo p : packages) {
       if ((p.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
         ret.add(p.packageName);
       }
@@ -130,14 +233,34 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     return ret;
   }
 
+  /*
+   * Launches the specified application.
+   */
   @ReactMethod
-  private void launchApplication(String packageName){
+  private void launchApplication(String packageName, @Nullable ReadableMap params) {
     Intent launchIntent = this.reactContext.getPackageManager().getLaunchIntentForPackage(packageName);
-    if (launchIntent != null) {
-      this.reactContext.startActivity(launchIntent);//null pointer check in case package name was not found
+    if (launchIntent == null) {
+      Log.e("ReactNative", "No launch intent available for package: " + packageName);
+      return;
     }
+    // Add parameters from ReadableMap to the intent
+    if (params != null) {
+      ReadableMapKeySetIterator iterator = params.keySetIterator();
+      while (iterator.hasNextKey()) {
+        String key = iterator.nextKey();
+        String value = params.getString(key);
+        launchIntent.putExtra(key, value);
+      }
+    }
+    int enterAnimRes = R.anim.slide_up;
+    Bundle animBundle = ActivityOptions.makeCustomAnimation(this.reactContext, enterAnimRes, 0).toBundle();
+    this.reactContext.startActivity(launchIntent, animBundle);
   }
 
+  /*
+   * Checks if the specified package is installed on the device.
+   * Invokes the callback with a boolean value indicating the result.
+   */
   @ReactMethod
   public void isPackageInstalled(String packageName, Callback cb) {
     PackageManager pm = this.reactContext.getPackageManager();
@@ -149,6 +272,11 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     }
   }
 
+  /*
+   * Retrieves the package name of the default launcher app.
+   * Resolves the promise with the package name.
+   * Rejects the promise with an error message if the default launcher package name cannot be retrieved.
+   */
   @ReactMethod
   public void getDefaultLauncherPackageName(Promise promise) {
     PackageManager pm = getReactApplicationContext().getPackageManager();
@@ -170,6 +298,9 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     }
   }
 
+  /*
+   * Starts the activity to set the app as the default launcher.
+   */
   @ReactMethod
   public void setAsDefaultLauncher() {
     PackageManager localPackageManager = this.reactContext.getPackageManager();
@@ -178,38 +309,11 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     this.reactContext.startActivity(intent);
   }
 
+  /*
+   * Retrieves package information for the current app.
+   */
   private PackageInfo getPackageInfo() throws Exception {
     return getReactApplicationContext().getPackageManager().getPackageInfo(getReactApplicationContext().getPackageName(), 0);
-  }
-
-  @Override
-  public @Nullable Map<String, Object> getConstants() {
-    Map<String, Object> constants = new HashMap<>();
-    String appVersion, buildNumber, appName;
-
-    try {
-      appVersion = getPackageInfo().versionName;
-      buildNumber = Integer.toString(getPackageInfo().versionCode);
-      appName = getReactApplicationContext().getApplicationInfo().loadLabel(getReactApplicationContext().getPackageManager()).toString();
-    } catch (Exception e) {
-      appVersion = "unknown";
-      buildNumber = "unknown";
-      appName = "unknown";
-    }
-    constants.put("getApps", getApps());
-    constants.put("getNonSystemApps", getNonSystemApps());
-    DeviceDetails device = new DeviceDetails();
-    device.appName = appName;
-    device.appVersion = appVersion;
-    device.deviceId =  Build.BOARD;
-    device.bundleId = getReactApplicationContext().getPackageName();
-    device.systemName = "Android";
-    device.systemVersion = Build.VERSION.RELEASE;
-    device.buildNumber = buildNumber;
-    device.brand = Build.BRAND;
-    device.model = Build.MODEL;
-    constants.put("DeviceDetails", device.toString());
-    return constants;
   }
 
   @Override
@@ -218,7 +322,10 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     return NAME;
   }
 
-
+  /*
+   * Retrieves the battery status of the device.
+   * Invokes the successCallback with the battery level and charging status.
+   */
   @ReactMethod
   public void getBatteryStatus(Callback successCallback) {
     Intent batteryIntent = getCurrentActivity().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -227,31 +334,46 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
     int status = batteryIntent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
     boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
       status == BatteryManager.BATTERY_STATUS_FULL;
-    if(level == -1 || scale == -1) {
+    if (level == -1 || scale == -1) {
       level = 0;
     }
-    successCallback.invoke(((float)level / (float)scale) * 100.0f, isCharging);
+    successCallback.invoke(((float) level / (float) scale) * 100.0f, isCharging);
   }
 
+  /*
+   * Opens the device settings.
+   */
   @ReactMethod
-  public void goToSettings()
-  {
+  public void goToSettings() {
     Intent intent = new Intent(Settings.ACTION_SETTINGS);
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     getReactApplicationContext().startActivity(intent);
   }
 
+  /*
+   * Opens the alarm app on the device, if available.
+   */
   @ReactMethod
   public void openAlarmApp() {
     try {
-      Intent intent = new Intent("android.intent.action.SHOW_ALARMS");
+      Intent intent = new Intent(AlarmClock.ACTION_SHOW_ALARMS);
       intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      this.reactContext.startActivity(intent);
-    } catch (ActivityNotFoundException ignore) {
-
+      if (intent.resolveActivity(reactContext.getPackageManager()) != null) {
+        reactContext.startActivity(intent);
+      } else {
+        // Log or handle the case where no activity can handle the intent
+        Log.e("LauncherKitModule", "No activity found to handle SHOW_ALARMS intent");
+      }
+    } catch (ActivityNotFoundException e) {
+      Log.e("LauncherKitModule", "Alarm app not found", e);
+    } catch (Exception e) {
+      Log.e("LauncherKitModule", "Failed to open alarm app", e);
     }
   }
 
+  /*
+   * Opens set default launcher from settings on the device, if available.
+   */
   @ReactMethod
   public void openSetDefaultLauncher(Promise promise) {
     try {
@@ -262,6 +384,92 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
       promise.resolve(true);
     } catch (Exception e) {
       promise.reject(e);
+    }
+  }
+
+  private BroadcastReceiver appInstallReceiver = new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      // Background thread execution
+      new Thread(new Runnable() {
+        @Override
+        public void run() {
+          // Extract package name from intent
+          String packageName = intent.getData().getSchemeSpecificPart();
+          PackageManager pManager = context.getPackageManager();
+
+          try {
+            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+            if (launchIntent != null) {
+              // Check if app has a launcher activity
+              ResolveInfo resolveInfo = pManager.resolveActivity(launchIntent, 0);
+              if (resolveInfo != null) {
+                // Create AppDetail object
+                AppDetail newApp = new AppDetail(resolveInfo, pManager, reactContext, true, true);
+                // Send app details back to React Native
+                ReactContext reactContext = getReactApplicationContext();
+                reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                  .emit("onAppInstalled", newApp.toString());
+              }
+            }
+          } catch (Exception e) {
+            e.printStackTrace();
+          }
+        }
+      }).start();
+    }
+  };
+
+  @ReactMethod
+  public void startListeningForAppInstallations() {
+    IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_ADDED);
+    filter.addDataScheme("package");
+    reactContext.registerReceiver(appInstallReceiver, filter);
+  }
+
+  @ReactMethod
+  public void stopListeningForAppInstallations() {
+    try {
+      reactContext.unregisterReceiver(appInstallReceiver);
+    } catch (IllegalArgumentException e) {
+      // Handle case where the receiver is already unregistered
+      e.printStackTrace();
+    }
+  }
+
+  private BroadcastReceiver appRemovalReceiver = new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      // Background thread execution
+      new Thread(new Runnable() {
+        @Override
+        public void run() {
+          // Extract package name from intent
+          String packageName = intent.getData().getSchemeSpecificPart();
+
+          // Send package name back to React Native
+          ReactContext reactContext = getReactApplicationContext();
+          reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+            .emit("onAppRemoved", packageName);
+        }
+      }).start();
+    }
+  };
+
+  @ReactMethod
+  public void startListeningForAppRemovals() {
+    IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_REMOVED);
+    filter.addDataScheme("package");
+    reactContext.registerReceiver(appRemovalReceiver, filter);
+  }
+
+  @ReactMethod
+  public void stopListeningForAppRemovals() {
+    try {
+      reactContext.unregisterReceiver(appRemovalReceiver);
+    } catch (IllegalArgumentException e) {
+      // Handle case where the receiver is already unregistered
+      e.printStackTrace();
     }
   }
 }
