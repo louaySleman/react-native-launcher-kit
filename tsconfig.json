@@ -29,5 +29,7 @@
     "noEmit": false,
     "target": "esnext"
   },
-  "exclude": ["example"]
+  "exclude": [
+    "example"
+  ]
 }

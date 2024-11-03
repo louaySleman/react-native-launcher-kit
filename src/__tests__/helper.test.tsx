@@ -1,6 +1,6 @@
 import { NativeModules } from 'react-native';
-import LauncherKitHelper from '../src/Helper';
-import type { BatteryStatus } from '../src/Interfaces/battery';
+import LauncherKitHelper from '../Helper';
+import type { BatteryStatus } from '../Interfaces/battery';
 
 // Define mock types
 type MockLauncherKit = {
