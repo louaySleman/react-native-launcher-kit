@@ -1,126 +1,228 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
-  Button,
-  Image,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
+  Pressable,
 } from 'react-native';
-import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
-import { AppDetail } from '../../lib/typescript/Interfaces/InstalledApps';
-import { BatteryStatus } from '../../lib/typescript/Interfaces/battery';
+import {InstalledApps, RNLauncherKitHelper} from 'react-native-launcher-kit';
+import {AppState} from './interfaces';
+import AppButton from './components/AppButton';
+import AppGrid from './components/AppGrid';
+import AppDetail from './components/AppDetail';
+import BatteryInfo from './components/BatteryInfo';
+import Loading from './components/Loading';
 
-const App = () => {
-  const [apps, setApps] = useState<AppDetail[]>([]);
-  const [firstApp, setFirstApp] = useState<AppDetail | undefined>(undefined);
+const App: React.FC = () => {
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showWithAccent, setShowWithAccent] = useState<boolean>(true);
+  const [apps, setApps] = useState<AppState['apps']>([]);
+  const [firstApp, setFirstApp] = useState<AppState['firstApp']>(undefined);
   const [defaultLauncherPackageName, setDefaultLauncherPackageName] =
     useState<string>('Unknown');
-  const [battery, setBattery] = useState<BatteryStatus>({
+  const [battery, setBattery] = useState<AppState['battery']>({
     isCharging: false,
     level: 0,
   });
+
+  /**
+   * Initializes the app by fetching battery status, installed apps, and default launcher information.
+   */
   const initApp = async () => {
-    const battery = await RNLauncherKitHelper.getBatteryStatus();
-    setBattery(battery);
-    const apps = InstalledApps.getSortedApps();
-    setApps(apps);
-    setFirstApp(apps[0]);
-    const defaultLauncher =
-      await RNLauncherKitHelper.getDefaultLauncherPackageName();
-    setDefaultLauncherPackageName(defaultLauncher);
+    setIsLoading(true);
+    try {
+      const battery = await RNLauncherKitHelper.getBatteryStatus();
+      setBattery(battery);
+
+      const apps = await InstalledApps.getApps({
+        includeVersion: true,
+        includeAccentColor: true,
+      });
+      setApps(apps);
+      setFirstApp(apps[0]);
+
+      const defaultLauncher =
+        await RNLauncherKitHelper.getDefaultLauncherPackageName();
+      setDefaultLauncherPackageName(defaultLauncher);
+    } catch (error) {
+      console.error('Error initializing app:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     initApp();
+
+    // Start listening for app installations and removals
+    InstalledApps.startListeningForAppInstallations(
+      (app: AppState['apps'][0]) => {
+        setApps(prev => [app, ...prev]);
+      },
+    );
+
+    InstalledApps.startListeningForAppRemovals((packageName: string) => {
+      setApps(prev => prev.filter(item => item.packageName !== packageName));
+    });
+
+    // Cleanup listeners on unmount
+    return () => {
+      InstalledApps.stopListeningForAppInstallations();
+      InstalledApps.stopListeningForAppRemovals();
+    };
   }, []);
 
+  /**
+   * Opens the device settings page.
+   */
   const openSettings = () => {
     RNLauncherKitHelper.goToSettings();
   };
 
+  /**
+   * Opens the launcher settings to set the default launcher.
+   */
   const openSetDefault = () => {
     RNLauncherKitHelper.openSetDefaultLauncher();
   };
+
+  /**
+   * Opens the device alarm app.
+   */
   const openAlarm = () => {
     RNLauncherKitHelper.openAlarmApp();
   };
+
+  /**
+   * Opens the first app in the installed apps list.
+   */
   const openFirstApp = () => {
-    if (!firstApp) return;
-    RNLauncherKitHelper.launchApplication(firstApp.packageName);
+    if (!firstApp) {
+      return;
+    }
+    RNLauncherKitHelper.launchApplication(
+      firstApp.packageName,
+      {test: '2'},
+      'slide',
+    );
   };
+
+  /**
+   * Opens a specific app by package name.
+   */
+  const openApplication = (packageName: string) => {
+    RNLauncherKitHelper.launchApplication(packageName);
+  };
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ height: '100%' }}>
-        <Text style={styles.bold}>Apps Installed count </Text>
-        <Text>{apps.length}</Text>
-        <Text style={styles.bold}>Battery Level </Text>
-        <Text>{battery.level}</Text>
-        <Text style={styles.bold}>Is Battery charging: </Text>
-        <Text>{battery.isCharging ? 'true' : 'false'}</Text>
-        <Text style={styles.bold}>
+      <ScrollView style={styles.scrollView}>
+        <Text style={styles.title}>Apps Installed count</Text>
+        <Text style={styles.text}>{apps.length}</Text>
+        <View style={styles.toggleContainer}>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              showWithAccent ? styles.toggleButtonActive : {},
+            ]}
+            onPress={() => setShowWithAccent(true)}>
+            <Text
+              style={[
+                styles.toggleButtonText,
+                showWithAccent ? styles.toggleButtonTextActive : {},
+              ]}>
+              With Accent
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.toggleButton,
+              !showWithAccent ? styles.toggleButtonActive : {},
+            ]}
+            onPress={() => setShowWithAccent(false)}>
+            <Text
+              style={[
+                styles.toggleButtonText,
+                !showWithAccent ? styles.toggleButtonTextActive : {},
+              ]}>
+              Without Accent
+            </Text>
+          </Pressable>
+        </View>
+        <AppGrid
+          apps={apps}
+          showWithAccent={showWithAccent}
+          onAppPress={openApplication}
+        />
+        <BatteryInfo battery={battery} />
+        <Text style={styles.title}>
           Currently Default launcher package name:
         </Text>
-        <Text>{defaultLauncherPackageName}</Text>
-        <Text style={styles.bold}>
-          App Example (Currently first app from the array)
+        <Text style={styles.text}>{defaultLauncherPackageName}</Text>
+        <Text style={styles.title}>
+          App Example (Currently first app from the array) with accent
+          background
         </Text>
-        {!!firstApp && (
-          <View style={styles.appContainer}>
-            <Image
-              style={styles.image}
-              source={{
-                uri: `data:image/jpeg;base64,${firstApp.icon}`,
-              }}
-            />
-            <Text>Name: {firstApp.label}</Text>
-            <Text>BundleID: {firstApp.packageName}</Text>
-          </View>
-        )}
-        <View style={styles.button}>
-          <Button
-            onPress={() => openFirstApp()}
-            title={'Open First App ( ' + firstApp?.label + ' )'}
-          />
-        </View>
-        <View style={styles.button}>
-          <Button onPress={() => openSettings()} title={'Open Settings'} />
-        </View>
-        <View style={styles.button}>
-          <Button
-            onPress={() => openSetDefault()}
-            title={'Open set Default Launcher'}
-          />
-        </View>
-        <View style={styles.button}>
-          <Button onPress={() => openAlarm()} title={'Open Alarm'} />
-        </View>
-      </View>
+        {firstApp && <AppDetail app={firstApp} />}
+        <AppButton
+          onPress={openFirstApp}
+          title={`Open First App (${firstApp?.label})`}
+        />
+        <AppButton onPress={openSettings} title="Open Settings" />
+        <AppButton onPress={openSetDefault} title="Set Default Launcher" />
+        <AppButton onPress={openAlarm} title="Open Alarm" />
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: '3%',
+    flex: 1,
+    backgroundColor: '#f1f1f1',
   },
-  bold: {
+  scrollView: {
+    paddingHorizontal: 20,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    paddingVertical: 10,
+  },
+  text: {
     fontSize: 16,
-    fontWeight: 'bold',
-    paddingVertical: '4%',
+    color: '#666',
   },
-  button: {
-    marginTop: '2%',
-    borderRadius: 12,
-    overflow: 'hidden',
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 10,
   },
-  appContainer: {
-    marginBottom: '4%',
+  toggleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#DDD',
+    marginHorizontal: 5,
   },
-  image: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+  toggleButtonActive: {
+    backgroundColor: '#9261E2',
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  toggleButtonTextActive: {
+    color: 'white',
   },
 });
+
 export default App;
