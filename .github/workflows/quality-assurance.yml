@@ -68,7 +68,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm i -g corepack
-          yarn install --frozen-lockfile
+          yarn install
 
       - name: Check Types
         run: yarn typecheck
