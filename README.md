@@ -5,7 +5,7 @@ with the launcher. It works with automatic linking on React Native versions 0.60
 linking is required.
 
 <p align="left">
-  <a href="https://www.npmjs.com/package/react-native-launcher-kit"><img src="https://img.shields.io/badge/npm-v2.0.0-blue"></a>
+  <a href="https://www.npmjs.com/package/react-native-launcher-kit"><img src="https://img.shields.io/badge/npm-v2.1.0-blue"></a>
  <a href="https://github.com/prettier/prettier"><img src="https://img.shields.io/badge/styled_with-prettier-ff69b4.svg"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
 </p>
@@ -15,7 +15,7 @@ linking is required.
 ```sh
 npm install react-native-launcher-kit
 ```
-
+or
 ```sh
 yarn add react-native-launcher-kit
 ```
@@ -103,6 +103,14 @@ This permission is required for the following features in this package:
 </p>
 
 ## Breaking History
+
+### [2.1.0](https://github.com/louaySleman/react-native-launcher-kit/releases/tag/2.1.0)
+**Enhanced Launch Parameters:**
+
+🚀 **Launch Parameter Support**
+- Added structured launch parameters for better app launching
+- Introduced [`IntentAction`](#intent-actions) and [`MimeType`](#mime-types) enums
+- Enhanced type safety with [`LaunchParams`](#launch-parameters-interface) interface
 
 ### [2.0.0](https://github.com/louaySleman/react-native-launcher-kit/releases/tag/2.0.0)
 **Breaking Changes:**
@@ -412,5 +420,3 @@ You can experience the functionality of the code by exploring the examples provi
 ## License
 
 MIT
-
----
