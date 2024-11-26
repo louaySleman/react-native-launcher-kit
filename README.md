@@ -176,15 +176,83 @@ interface GetAppsOptions {
 - The icon property will now return the file path of the icon image instead of the base64 encoded string as in previous versions.
 - The accentColor property provides the dominant color of the app's icon for easy UI theming.
 
-### 3. `launchApplication`
+### 3. Enhanced App Launching `launchApplication`
 
-A helper function allow you to Launch an application using its bundle ID with optional params.
-
+#### Basic App Launch
 ```typescript
 import { RNLauncherKitHelper } from 'react-native-launcher-kit';
 
-RNLauncherKitHelper.launchApplication('com.example.louay', {param1: 'param1'});
+// Simple app launch
+RNLauncherKitHelper.launchApplication('com.example.app');
 ```
+
+#### Launch with Parameters
+
+Google Maps Examples
+```typescript
+import { RNLauncherKitHelper, IntentAction } from 'react-native-launcher-kit';
+// Open specific location
+RNLauncherKitHelper.launchApplication('com.google.android.apps.maps', {
+  action: IntentAction.VIEW,
+  data: `geo:40.7580,-73.9855?q=40.7580,-73.9855(Times Square)&z=16`
+});
+
+// Start navigation
+RNLauncherKitHelper.launchApplication('com.google.android.apps.maps', {
+  action: IntentAction.VIEW,
+  data: `google.navigation:q=48.8584,2.2945&mode=driving`
+});
+```
+
+Browser Examples
+```typescript
+import { RNLauncherKitHelper, IntentAction } from 'react-native-launcher-kit';
+// Open URL in Chrome
+RNLauncherKitHelper.launchApplication('com.android.chrome', {
+  action: IntentAction.VIEW,
+  data: 'https://www.youtube.com'
+});
+```
+
+#### Intent Actions
+Available intent actions for enhanced app launching:
+```typescript
+enum IntentAction {
+  MAIN = 'android.intent.action.MAIN',
+  VIEW = 'android.intent.action.VIEW',
+  SEND = 'android.intent.action.SEND'
+}
+```
+
+#### MIME Types
+Common MIME types for content handling:
+```typescript
+enum MimeType {
+  ALL = '*/*',
+  GENESIS_ROM = 'application/x-genesis-rom',
+  PSX_ROM = 'application/x-playstation-rom',
+  PDF = 'application/pdf',
+  TEXT = 'text/plain',
+  HTML = 'text/html'
+}
+```
+
+### Launch Parameters Interface
+```typescript
+interface LaunchParams {
+  action?: IntentAction | string;
+  data?: string;
+  type?: MimeType | string;
+  extras?: Record;
+}
+```
+
+### Important Notes
+- The enums (`IntentAction` and `MimeType`) are optional helpers
+- You can use any valid Android intent action string directly
+- You can use any valid MIME type string directly
+- The `extras` object accepts any key-value pairs needed by the target app
+- Always check if the target app is installed before launching
 
 ### 4. `checkIfPackageInstalled: Promise<boolean>`
 

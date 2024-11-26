@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "test": "jest",
+    "tsc": "npx tsc",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "prepack": "bob build",
@@ -171,7 +172,8 @@
       [
         "typescript",
         {
-          "project": "tsconfig.build.json"
+          "project": "tsconfig.build.json",
+          "tsc": "node_modules/.bin/tsc"
         }
       ]
     ]
