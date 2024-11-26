@@ -238,23 +238,74 @@ public class LauncherKitModule extends ReactContextBaseJavaModule {
    */
   @ReactMethod
   private void launchApplication(String packageName, @Nullable ReadableMap params) {
-    Intent launchIntent = this.reactContext.getPackageManager().getLaunchIntentForPackage(packageName);
-    if (launchIntent == null) {
-      Log.e("ReactNative", "No launch intent available for package: " + packageName);
-      return;
-    }
-    // Add parameters from ReadableMap to the intent
-    if (params != null) {
-      ReadableMapKeySetIterator iterator = params.keySetIterator();
-      while (iterator.hasNextKey()) {
-        String key = iterator.nextKey();
-        String value = params.getString(key);
-        launchIntent.putExtra(key, value);
+    PackageManager packageManager = this.reactContext.getPackageManager();
+    Intent launchIntent = null;
+
+    try {
+      if (params != null) {
+        // Get the action if specified, otherwise use MAIN
+        String action = params.hasKey("action")
+          ? params.getString("action")
+          : Intent.ACTION_MAIN;
+
+        launchIntent = new Intent(action);
+        launchIntent.setPackage(packageName);
+
+        // Handle URI data if provided
+        if (params.hasKey("data")) {
+          String data = params.getString("data");
+          if (data.startsWith("geo:")) {
+            // Handle Google Maps
+            launchIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(data));
+            launchIntent.setPackage(packageName);
+          } else if (data.startsWith("file://")) {
+            // Handle file-based intents
+            launchIntent.setDataAndType(
+              android.net.Uri.parse(data),
+              params.hasKey("type") ? params.getString("type") : "*/*"
+            );
+            launchIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+          } else if (data.startsWith("http://") || data.startsWith("https://")) {
+            // Handle URLs
+            launchIntent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(data));
+            launchIntent.setPackage(packageName);
+          } else {
+            // Generic data handling
+            launchIntent.setData(android.net.Uri.parse(data));
+          }
+        }
+
+        // Handle extras if provided
+        if (params.hasKey("extras")) {
+          ReadableMap extras = params.getMap("extras");
+          ReadableMapKeySetIterator iterator = extras.keySetIterator();
+          while (iterator.hasNextKey()) {
+            String key = iterator.nextKey();
+            String value = extras.getString(key);
+            launchIntent.putExtra(key, value);
+          }
+        }
+
+        // Add category if specified
+        if (params.hasKey("category")) {
+          launchIntent.addCategory(params.getString("category"));
+        }
+      } else {
+        // Fallback to default launch intent
+        launchIntent = packageManager.getLaunchIntentForPackage(packageName);
       }
+
+      if (launchIntent != null) {
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        int enterAnimRes = R.anim.slide_up;
+        Bundle animBundle = ActivityOptions.makeCustomAnimation(this.reactContext, enterAnimRes, 0).toBundle();
+        this.reactContext.startActivity(launchIntent, animBundle);
+      } else {
+        Log.e("ReactNative", "No launch intent available for package: " + packageName);
+      }
+    } catch (Exception e) {
+      Log.e("ReactNative", "Error launching application: " + e.getMessage());
     }
-    int enterAnimRes = R.anim.slide_up;
-    Bundle animBundle = ActivityOptions.makeCustomAnimation(this.reactContext, enterAnimRes, 0).toBundle();
-    this.reactContext.startActivity(launchIntent, animBundle);
   }
 
   /*
