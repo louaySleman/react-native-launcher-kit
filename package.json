@@ -1,6 +1,6 @@
 {
   "name": "react-native-launcher-kit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "React Native Launcher Kit is a comprehensive package for building launchers in React Native. It provides features like launching an app, opening device settings, checking app installation, getting default launcher app's bundle ID, opening default alarm app, getting current battery status, and setting the default launcher.",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
