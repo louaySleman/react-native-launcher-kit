@@ -8,5 +8,6 @@
  */
 import InstalledApps from './InstalledApps';
 import RNLauncherKitHelper from './Helper';
+import { IntentAction, MimeType } from './Utils/enum';
 
-export { InstalledApps, RNLauncherKitHelper };
+export { InstalledApps, RNLauncherKitHelper, IntentAction, MimeType };

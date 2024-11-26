@@ -8,7 +8,10 @@
  */
 import { NativeModules } from 'react-native';
 import { LINKING_ERROR } from '../Utils/helper';
-import type { LauncherKitHelperProps } from '../Interfaces/helper';
+import type {
+  LauncherKitHelperProps,
+  LaunchParams,
+} from '../Interfaces/helper';
 import type { BatteryStatus } from '../Interfaces/battery';
 
 const LauncherKit = NativeModules.LauncherKit
@@ -27,22 +30,52 @@ const LauncherKit = NativeModules.LauncherKit
  */
 const LauncherKitHelper: LauncherKitHelperProps = {
   /**
-   * Launches an app with the given bundle ID with scale in animation.
+   * Launches an application with optional intent parameters.
    *
-   * @param bundleId The bundle ID of the app to launch.
-   * @param params Additional parameters to pass to the launched app.
-   * @param animation The animation that you want in default it's fade in
-   * @returns `true` if the app was successfully launched, `false` otherwise.
+   * @example
+   * // Launch Google Maps with location
+   * launchApplication('com.google.android.apps.maps', {
+   *   action: IntentAction.VIEW,
+   *   data: 'geo:37.7749,-122.4194?z=16'
+   * });
+   *
+   * @example
+   * // Launch emulator with ROM
+   * launchApplication('com.explusalpha.MdEmu', {
+   *   action: IntentAction.VIEW,
+   *   data: 'file:///storage/emulated/0/game.rom',
+   *   type: MimeType.GENESIS_ROM
+   * });
+   *
+   * @param bundleId - The package name of the app to launch
+   * @param params - Optional parameters for the intent
+   * @param params.action - Intent action (e.g., 'android.intent.action.VIEW')
+   * @param params.data - URI data to pass to the intent (e.g., 'file://', 'geo:', 'http://')
+   * @param params.type - MIME type of the data
+   * @param params.extras - Additional key-value pairs to pass as intent extras
+   *
+   * @returns boolean indicating whether the app was successfully launched
+   *
+   * @throws Will log error in development if launch fails
    */
-  launchApplication: (
-    bundleId: string,
-    params?: Record<string, string>
-  ): boolean => {
+  launchApplication: (bundleId: string, params?: LaunchParams): boolean => {
+    if (!bundleId) {
+      if (__DEV__) console.error('Bundle ID is required');
+      return false;
+    }
     try {
       LauncherKit.launchApplication(bundleId, params);
       return true;
     } catch (error) {
-      if (__DEV__) console.error(error);
+      if (__DEV__) {
+        console.error(
+          `Failed to launch application: ${bundleId}`,
+          '\nParams:',
+          params,
+          '\nError:',
+          error
+        );
+      }
       return false;
     }
   },
