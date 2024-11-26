@@ -42,7 +42,7 @@ export enum IntentAction {
    * - Sending files
    * - Sharing URLs
    */
-  SEND = 'android.intent.action.SEND'
+  SEND = 'android.intent.action.SEND',
 }
 
 /**
@@ -100,5 +100,5 @@ export enum MimeType {
    * MIME type for HTML documents
    * Used for web content
    */
-  HTML = 'text/html'
+  HTML = 'text/html',
 }

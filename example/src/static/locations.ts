@@ -3,7 +3,7 @@
  */
 export const LOCATIONS = {
   TIMES_SQUARE: {
-    latitude: 40.7580,
+    latitude: 40.758,
     longitude: -73.9855,
     label: 'Times Square',
   },
