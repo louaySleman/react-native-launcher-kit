@@ -7,15 +7,23 @@ import {
   View,
   Pressable,
 } from 'react-native';
-import {InstalledApps, RNLauncherKitHelper} from 'react-native-launcher-kit';
+import {
+  InstalledApps,
+  RNLauncherKitHelper,
+  IntentAction,
+} from 'react-native-launcher-kit';
 import {AppState} from './interfaces';
+import {LOCATIONS} from './static/locations';
 import AppButton from './components/AppButton';
 import AppGrid from './components/AppGrid';
-import AppDetail from './components/AppDetail';
 import BatteryInfo from './components/BatteryInfo';
 import Loading from './components/Loading';
 
+/**
+ * Main application component demonstrating LauncherKit functionality
+ */
 const App: React.FC = () => {
+  // State declarations
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [showWithAccent, setShowWithAccent] = useState<boolean>(true);
   const [apps, setApps] = useState<AppState['apps']>([]);
@@ -28,35 +36,36 @@ const App: React.FC = () => {
   });
 
   /**
-   * Initializes the app by fetching battery status, installed apps, and default launcher information.
+   * Initialize app data and set up app installation listeners
    */
-  const initApp = async () => {
-    setIsLoading(true);
-    try {
-      const battery = await RNLauncherKitHelper.getBatteryStatus();
-      setBattery(battery);
-
-      const apps = await InstalledApps.getApps({
-        includeVersion: true,
-        includeAccentColor: true,
-      });
-      setApps(apps);
-      setFirstApp(apps[0]);
-
-      const defaultLauncher =
-        await RNLauncherKitHelper.getDefaultLauncherPackageName();
-      setDefaultLauncherPackageName(defaultLauncher);
-    } catch (error) {
-      console.error('Error initializing app:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const initApp = async () => {
+      setIsLoading(true);
+      try {
+        const [batteryStatus, installedApps, defaultLauncher] =
+          await Promise.all([
+            RNLauncherKitHelper.getBatteryStatus(),
+            InstalledApps.getApps({
+              includeVersion: true,
+              includeAccentColor: true,
+            }),
+            RNLauncherKitHelper.getDefaultLauncherPackageName(),
+          ]);
+
+        setBattery(batteryStatus);
+        setApps(installedApps);
+        setFirstApp(installedApps[0]);
+        setDefaultLauncherPackageName(defaultLauncher);
+      } catch (error) {
+        console.error('Error initializing app:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     initApp();
 
-    // Start listening for app installations and removals
+    // Set up app installation/removal listeners
     InstalledApps.startListeningForAppInstallations(
       (app: AppState['apps'][0]) => {
         setApps(prev => [app, ...prev]);
@@ -67,53 +76,57 @@ const App: React.FC = () => {
       setApps(prev => prev.filter(item => item.packageName !== packageName));
     });
 
-    // Cleanup listeners on unmount
+    // Cleanup listeners
     return () => {
       InstalledApps.stopListeningForAppInstallations();
       InstalledApps.stopListeningForAppRemovals();
     };
   }, []);
 
-  /**
-   * Opens the device settings page.
-   */
-  const openSettings = () => {
-    RNLauncherKitHelper.goToSettings();
-  };
+  // App launch handlers
+  const handlers = {
+    openApplication: (packageName: string) => {
+      RNLauncherKitHelper.launchApplication(packageName);
+    },
 
-  /**
-   * Opens the launcher settings to set the default launcher.
-   */
-  const openSetDefault = () => {
-    RNLauncherKitHelper.openSetDefaultLauncher();
-  };
+    openFirstApp: () => {
+      if (!firstApp) {
+        console.warn('No apps available to open');
+        return;
+      }
+      RNLauncherKitHelper.launchApplication(firstApp.packageName);
+    },
 
-  /**
-   * Opens the device alarm app.
-   */
-  const openAlarm = () => {
-    RNLauncherKitHelper.openAlarmApp();
-  };
+    openSettings: () => RNLauncherKitHelper.goToSettings(),
 
-  /**
-   * Opens the first app in the installed apps list.
-   */
-  const openFirstApp = () => {
-    if (!firstApp) {
-      return;
-    }
-    RNLauncherKitHelper.launchApplication(
-      firstApp.packageName,
-      {test: '2'},
-      'slide',
-    );
-  };
+    openSetDefault: () => RNLauncherKitHelper.openSetDefaultLauncher(),
 
-  /**
-   * Opens a specific app by package name.
-   */
-  const openApplication = (packageName: string) => {
-    RNLauncherKitHelper.launchApplication(packageName);
+    openAlarm: () => RNLauncherKitHelper.openAlarmApp(),
+
+    openMapLocation: () => {
+      const {latitude, longitude, label} = LOCATIONS.TIMES_SQUARE;
+      RNLauncherKitHelper.launchApplication('com.google.android.apps.maps', {
+        action: IntentAction.VIEW,
+        data: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(
+          label,
+        )})&z=16`,
+      });
+    },
+
+    openMapNavigation: () => {
+      const {latitude, longitude} = LOCATIONS.EIFFEL_TOWER;
+      RNLauncherKitHelper.launchApplication('com.google.android.apps.maps', {
+        action: IntentAction.VIEW,
+        data: `google.navigation:q=${latitude},${longitude}&mode=driving`,
+      });
+    },
+
+    openYouTube: () => {
+      RNLauncherKitHelper.launchApplication('com.android.chrome', {
+        action: IntentAction.VIEW,
+        data: 'https://www.youtube.com',
+      });
+    },
   };
 
   if (isLoading) {
@@ -123,60 +136,115 @@ const App: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
-        <Text style={styles.title}>Apps Installed count</Text>
-        <Text style={styles.text}>{apps.length}</Text>
-        <View style={styles.toggleContainer}>
-          <Pressable
-            style={[
-              styles.toggleButton,
-              showWithAccent ? styles.toggleButtonActive : {},
-            ]}
-            onPress={() => setShowWithAccent(true)}>
-            <Text
-              style={[
-                styles.toggleButtonText,
-                showWithAccent ? styles.toggleButtonTextActive : {},
-              ]}>
-              With Accent
+        {/* Installed Apps Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Installed Applications</Text>
+            <Text style={styles.sectionSubtitle}>
+              Total Apps: {apps.length}
             </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.toggleButton,
-              !showWithAccent ? styles.toggleButtonActive : {},
-            ]}
-            onPress={() => setShowWithAccent(false)}>
-            <Text
+          </View>
+
+          <View style={styles.toggleContainer}>
+            <Pressable
               style={[
-                styles.toggleButtonText,
-                !showWithAccent ? styles.toggleButtonTextActive : {},
-              ]}>
-              Without Accent
-            </Text>
-          </Pressable>
+                styles.toggleButton,
+                showWithAccent ? styles.toggleButtonActive : {},
+              ]}
+              onPress={() => setShowWithAccent(true)}>
+              <Text
+                style={[
+                  styles.toggleButtonText,
+                  showWithAccent ? styles.toggleButtonTextActive : {},
+                ]}>
+                With Accent
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.toggleButton,
+                !showWithAccent ? styles.toggleButtonActive : {},
+              ]}
+              onPress={() => setShowWithAccent(false)}>
+              <Text
+                style={[
+                  styles.toggleButtonText,
+                  !showWithAccent ? styles.toggleButtonTextActive : {},
+                ]}>
+                Without Accent
+              </Text>
+            </Pressable>
+          </View>
+
+          <AppGrid
+            apps={apps}
+            showWithAccent={showWithAccent}
+            onAppPress={handlers.openApplication}
+          />
         </View>
-        <AppGrid
-          apps={apps}
-          showWithAccent={showWithAccent}
-          onAppPress={openApplication}
-        />
-        <BatteryInfo battery={battery} />
-        <Text style={styles.title}>
-          Currently Default launcher package name:
-        </Text>
-        <Text style={styles.text}>{defaultLauncherPackageName}</Text>
-        <Text style={styles.title}>
-          App Example (Currently first app from the array) with accent
-          background
-        </Text>
-        {firstApp && <AppDetail app={firstApp} />}
-        <AppButton
-          onPress={openFirstApp}
-          title={`Open First App (${firstApp?.label})`}
-        />
-        <AppButton onPress={openSettings} title="Open Settings" />
-        <AppButton onPress={openSetDefault} title="Set Default Launcher" />
-        <AppButton onPress={openAlarm} title="Open Alarm" />
+
+        {/* System Info Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>System Information</Text>
+          </View>
+          <BatteryInfo battery={battery} />
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Default Launcher:</Text>
+            <Text style={styles.infoValue}>{defaultLauncherPackageName}</Text>
+          </View>
+        </View>
+
+        {/* Demo Actions Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Launch Apps Demo</Text>
+            <Text style={styles.sectionSubtitle}>
+              Examples of launching apps with parameters
+            </Text>
+          </View>
+
+          <View style={styles.actionGroup}>
+            <Text style={styles.groupTitle}>💻 Basic Controls</Text>
+            <AppButton
+              onPress={handlers.openFirstApp}
+              title={`📱 Launch ${firstApp?.label || 'First App'}`}
+            />
+            <AppButton
+              onPress={handlers.openSettings}
+              title="⚙️ System Settings"
+            />
+          </View>
+
+          <View style={styles.actionGroup}>
+            <Text style={styles.groupTitle}>🛠️ System Utilities</Text>
+            <AppButton
+              onPress={handlers.openSetDefault}
+              title="🏠 Set Default Launcher"
+            />
+            <AppButton onPress={handlers.openAlarm} title="⏰ Open Alarm" />
+          </View>
+
+          <View style={styles.actionGroup}>
+            <Text style={styles.groupTitle}>🗺️ Location Services</Text>
+            <AppButton
+              onPress={handlers.openMapLocation}
+              title="🗽 View Times Square Location"
+            />
+            <AppButton
+              onPress={handlers.openMapNavigation}
+              title="🗼 Navigate to Eiffel Tower"
+            />
+          </View>
+
+          <View style={styles.actionGroup}>
+            <Text style={styles.groupTitle}>🌐 Web Applications</Text>
+            <AppButton
+              onPress={handlers.openYouTube}
+              title="📺 Launch YouTube in Browser"
+            />
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -190,15 +258,28 @@ const styles = StyleSheet.create({
   scrollView: {
     paddingHorizontal: 20,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
-    paddingVertical: 10,
+  section: {
+    marginVertical: 20,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 16,
   },
-  text: {
-    fontSize: 16,
-    color: '#666',
+  sectionHeader: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2d3748',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#718096',
+    fontWeight: '500',
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -222,6 +303,34 @@ const styles = StyleSheet.create({
   },
   toggleButtonTextActive: {
     color: 'white',
+  },
+  actionGroup: {
+    marginBottom: 16,
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4a5568',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    flexWrap: 'wrap',
+  },
+  infoLabel: {
+    fontSize: 16,
+    color: '#4a5568',
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#718096',
   },
 });
 
